@@ -11,54 +11,58 @@
 #define PORT 10000
 
 int main(int argc, char** argv) {
-    init(HOST, PORT);
-    
-    pack *pack;
+	init(HOST, PORT);
+	
+	pack *pack = default_pack();
+	char *Sdata = default_Sdata();
 
-	pack = default_pack();
-
-	if (!verified_send_pack(pack, 11, 'S', default_Sdata()))
+	//Sending Send-Init pack
+	if (!verified_send_pack(pack, 11, 'S', Sdata))
 		return -2;
 
-    for (int i = 1; i < argc; i++) {
+	free(Sdata);
 
-	    //Sending File Header pack
-	    if (!verified_send_pack(pack, strlen(argv[i]) + 1, 'F', argv[i]))
-	    	return -2;
+	for (int i = 1; i < argc; i++) {
+
+		//Sending File Header pack
+		if (!verified_send_pack(pack, strlen(argv[i]) + 1, 'F', argv[i]))
+			return -2;
 
 
-	    //Opening file
-    	int f = open(argv[i], O_RDONLY);
+		//Opening file
+		int f = open(argv[i], O_RDONLY);
 
-    	if (f == -1) {
-    		printf("Could not open file %s!", argv[i]);
-    		return -1;
-    	}
+		if (f == -1) {
+			printf("Could not open file %s!", argv[i]);
+			return -1;
+		}
 
-    	char buf[250];
-    	int size = read(f, buf, 240);
-    	while(size) {
-    		if (size == -1) {
-    			printf("Failed to read from file!\n");
-    		}
+		char buf[250];
+		int size = read(f, buf, 250);
+		while(size) {
+			if (size == -1) {
+				printf("Failed to read from file!\n");
+			}
 
-    		//Sending Data pack
-    		if (!verified_send_pack(pack, size, 'D', buf))
-    			return -2;
-    		
-    		size = read(f, buf, 240);
-    	}
-    	
-	    close(f);
+			//Sending Data pack
+			if (!verified_send_pack(pack, size, 'D', buf))
+				return -2;
+			
+			size = read(f, buf, 250);
+		}
+		
+		close(f);
 
-	    //Sending EOF pack
-	    if (!verified_send_pack(pack, 0, 'Z', NULL))
-	    	return -2;
+		//Sending EOF pack
+		if (!verified_send_pack(pack, 0, 'Z', NULL))
+			return -2;
 	}
 
 	//Sending EOT pack
 	if (!verified_send_pack(pack, 0, 'B', NULL))
 		return -2;
-    
-    return 0;
+
+	free(pack);
+	
+	return 0;
 }

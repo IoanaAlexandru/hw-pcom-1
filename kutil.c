@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
+//Allocate data string containing default Send-init info
 char* default_Sdata() {
 	char *S = (char*) calloc(11, sizeof(char));
 
@@ -20,25 +21,27 @@ char* default_Sdata() {
 	return S;
 }
 
+//Allocate pack with default values
 pack* default_pack() {
-	pack *my_pack = (pack*) calloc(1, sizeof(pack));
+	pack *pack = (pack*) calloc(1, sizeof(pack));
 
-	if (my_pack == NULL) {
+	if (pack == NULL) {
 		printf("Allocation failed! (default_pack)");
-		return my_pack;
+		return pack;
 	}
 
-	my_pack->SOH = 1;
-	my_pack->LEN = 5; //initial data length is 0
-	my_pack->SEQ = -1;
-	my_pack->TYPE = 'S';
-	my_pack->MARK = EOL;
+	pack->SOH = 1;
+	pack->LEN = 5; //initial data length is 0
+	pack->SEQ = -1;
+	pack->TYPE = 'S';
+	pack->MARK = EOL;
 	
-	return my_pack;
+	return pack;
 }
 
-unsigned char* pack_to_string(pack *my_pack) {
-	unsigned char len = my_pack->LEN;
+//Convert a pack structure to a string and initialising the CHECK field
+unsigned char* pack_to_string(pack *pack) {
+	unsigned char len = pack->LEN;
 	unsigned char *S = (unsigned char*) calloc(len + 2, sizeof(char));
 
 	if (S == NULL) {
@@ -46,22 +49,23 @@ unsigned char* pack_to_string(pack *my_pack) {
 		return S;
 	}
 	
-	S[0] = my_pack->SOH;
-	S[1] = my_pack->LEN;
-	S[2] = my_pack->SEQ;
-	S[3] = my_pack->TYPE;
+	S[0] = pack->SOH;
+	S[1] = pack->LEN;
+	S[2] = pack->SEQ;
+	S[3] = pack->TYPE;
 
 	for (int i = 0; i < len - 5; i++) {
-		S[i + 4] = my_pack->DATA[i];
+		S[i + 4] = pack->DATA[i];
 	}
 
-	my_pack->CHECK = crc16_ccitt(S, len - 1);
-	memmove(S + len - 1, &(my_pack->CHECK), 2);
-	S[len + 1] = my_pack->MARK;
+	pack->CHECK = crc16_ccitt(S, len - 1);
+	memmove(S + len - 1, &(pack->CHECK), 2);
+	S[len + 1] = pack->MARK;
 
 	return S;
 }
 
+//Convert a string to a pack structure
 pack* string_to_pack(unsigned char *S) {
 	pack *pack = default_pack();
 	
@@ -81,9 +85,11 @@ pack* string_to_pack(unsigned char *S) {
 	return pack;
 }
 
+//Intuitive printing of a pack structure given as a string
 void print_pack(unsigned char* pack) {
 	unsigned char len = pack[1], type = pack[3];
 
+	//Send-init and default pack fields are printed in a table
 	printf("+------+------+------+------+------+------+\n");
 	printf("| SOH  | LEN  | SEQ  | TYPE |CHECK | MARK |\n");
 	for (int i = 0; i < 4; i++)
@@ -101,11 +107,12 @@ void print_pack(unsigned char* pack) {
 		printf("+------+------+------+------+------+------+------+------+------+------+------+");
 	}
 	else if (type == 'F') {
+		//Print file name as-is
 		for (int i = 4; i < len - 1; i++) {
 			printf("%c", pack[i]);
 		}
 	} else {
-		//Simulate xxd output
+		//Simulate xxd output for binary data
 		for (int i = 4; i < len - 1; i++) {
 			printf("%02X", pack[i]);
 			if (i % 2 != 0)
@@ -118,6 +125,7 @@ void print_pack(unsigned char* pack) {
 	printf("\n\n");
 }
 
+//Update the previously sent pack and send the new data forward
 void update_and_send_pack(pack *pack, unsigned char data_len, unsigned char type, char *data) {
 	//Updating pack
 	pack->LEN = 5 + data_len;
@@ -141,6 +149,7 @@ void update_and_send_pack(pack *pack, unsigned char data_len, unsigned char type
 	free(string_pack);
 }
 
+//Send a pack
 void send_pack(pack *pack) {
 	//Converting to string
 	unsigned char *string_pack = pack_to_string(pack);
@@ -157,32 +166,35 @@ void send_pack(pack *pack) {
 	free(string_pack);
 }
 
+//Send pack while checking the response for errors, timeouts and data loss
 int verified_send_pack(pack *pack, unsigned char data_len, unsigned char type, char *data) {
 	int i;
+	msg *r;
 
 	for (i = 0; i < 3; i++) {
 		//Sending pack
-	    update_and_send_pack(pack, data_len, type, data);
+		update_and_send_pack(pack, data_len, type, data);
 
 		//Getting response
-		msg *r;
 		r = receive_message_timeout(TIME * 1000);
 		if (r == NULL) {
-		    perror("SENDER: Timeout error");
+			perror("SENDER: Timeout error");
 		} else if (r->payload[3] == 'Y' && r->payload[2] == (pack->SEQ + 1)) {
-		    pack->SEQ++;
-		    break;
+			pack->SEQ = (pack->SEQ + 1) % 64;
+			free(r);
+			break;
 		} else if (r->payload[3] == 'N') {
-			i--;
+			i = 0; //reset counter
 		}
 
 		pack->SEQ--;
+		free(r);
 	}
 
 	if (i == 3) {
 		perror("SENDER: Communication error. Shutting down.");
 		return 0;
 	}
-
+	
 	return 1;
 }

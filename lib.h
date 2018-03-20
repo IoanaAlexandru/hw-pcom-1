@@ -1,11 +1,9 @@
-#pragma pack(1)
-
 #ifndef LIB
 #define LIB
 
 typedef struct {
-    int len;
-    char payload[1400];
+	int len;
+	char payload[1400];
 } msg;
 
 typedef struct {
