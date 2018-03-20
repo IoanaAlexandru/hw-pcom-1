@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     	}
 
     	char buf[250];
-    	int size = read(f, buf, 250);
+    	int size = read(f, buf, 240);
     	while(size) {
     		if (size == -1) {
     			printf("Failed to read from file!\n");
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     		if (!verified_send_pack(pack, size, 'D', buf))
     			return -2;
     		
-    		size = read(f, buf, 250);
+    		size = read(f, buf, 240);
     	}
     	
 	    close(f);

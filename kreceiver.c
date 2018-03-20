@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
 
     msg *r;
     pack *pack = default_pack();
-    int i = 0, f = -1, eot = 0;
+    int i = 0, f = -1, eot = 0, prev = -1, ok = 0;
     char type;
     char filename[30];
 
@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
 	    		}
 
 	    		i++;
+                printf("Try again\n");
 	    		send_pack(pack);
 	    		continue;
 	    	}
@@ -44,46 +45,55 @@ int main(int argc, char** argv) {
         free(pack);
         pack = string_to_pack((unsigned char*)r->payload);
 
+        if (pack->SEQ == prev && ok) {
+            send_pack(pack);
+            continue;
+        }
+
         unsigned short received_crc = pack->CHECK,
                        computed_crc = crc16_ccitt(r->payload, r->len - 3);
 
-        pack->LEN = 5;
+        prev = pack->SEQ;
         pack->SEQ = (pack->SEQ + 1) % 64;
+        int len = pack->LEN;
+        pack->LEN = 5;
 
         if (received_crc == computed_crc) {
+            ok = 1;
+
         	type = pack->TYPE;
             pack->TYPE = 'Y';
 
             switch(type) {
                 case 'S':
                 	pack->DATA = (unsigned char*)default_Sdata();
-                    send_pack(pack);
-                    free(pack->DATA);
+                    pack->LEN += 11;
                     break;
                 case 'F':
                     strcpy(filename, "recv_");
                     strcat(filename, (char*)pack->DATA);
                     f = open(filename, O_WRONLY | O_CREAT, 0744);
-                    send_pack(pack);
                     break;
                 case 'D':
-                    write(f, pack->DATA, pack->LEN - 5);
-                    send_pack(pack);
+                    write(f, pack->DATA, len - 5);
                     break;
                 case 'Z':
                     close(f);
-                    send_pack(pack);
                     break;
-                case 'B':
-                    send_pack(pack);
                 default:
                     eot = 1;
             }
         } else {
-            printf("received_crc = %d | computed_crc = %d\n", received_crc, computed_crc);
+            ok = 0;
+
+            printf("Received CRC = 0x%X | Computed CRC = 0x%X\n", received_crc, computed_crc);
             pack->TYPE = 'N';
-            send_pack(pack);
         }
+        
+        //Sending response
+        send_pack(pack);
+        if (pack->DATA != NULL)
+            free(pack->DATA);
 
     } while(!eot);
 

@@ -38,7 +38,7 @@ int verified_send_pack(pack *pack, unsigned char len, unsigned char type, char *
 #endif
 
 #ifndef TIME
-#define TIME 1
+#define TIME 5
 #endif
 
 #ifndef NPAD
