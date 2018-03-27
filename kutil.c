@@ -23,20 +23,20 @@ char* default_Sdata() {
 
 //Allocate pack with default values
 pack* default_pack() {
-	pack *pack = (pack*) calloc(1, sizeof(pack));
+	pack *my_pack = (pack*) calloc(1, sizeof(pack));
 
-	if (pack == NULL) {
+	if (my_pack == NULL) {
 		printf("Allocation failed! (default_pack)");
-		return pack;
+		return my_pack;
 	}
 
-	pack->SOH = 1;
-	pack->LEN = 5; //initial data length is 0
-	pack->SEQ = -1;
-	pack->TYPE = 'S';
-	pack->MARK = EOL;
+	my_pack->SOH = 1;
+	my_pack->LEN = 5; //initial data length is 0
+	my_pack->SEQ = -1;
+	my_pack->TYPE = 'S';
+	my_pack->MARK = EOL;
 	
-	return pack;
+	return my_pack;
 }
 
 //Convert a pack structure to a string and initialising the CHECK field
@@ -68,12 +68,20 @@ unsigned char* pack_to_string(pack *pack) {
 //Convert a string to a pack structure
 pack* string_to_pack(unsigned char *S) {
 	pack *pack = default_pack();
+
+	if (pack == NULL)
+		return pack;
 	
 	pack->SOH = S[0];
 	pack->LEN = S[1];
 	pack->SEQ = S[2];
 	pack->TYPE = S[3];
 	pack->DATA = (unsigned char*)calloc(pack->LEN - 5, sizeof(unsigned char));
+
+	if (S == NULL) {
+		printf("Data allocation failed! (string_to_pack)");
+		return pack;
+	}
 
 	for (int i = 0; i < pack->LEN - 5; i++) {
 		pack->DATA[i] = S[i + 4];
@@ -170,7 +178,7 @@ void send_pack(pack *pack) {
 int verified_send_pack(pack *pack, unsigned char data_len, unsigned char type, char *data) {
 	int i;
 	msg *r;
-
+	
 	for (i = 0; i < 3; i++) {
 		//Sending pack
 		update_and_send_pack(pack, data_len, type, data);

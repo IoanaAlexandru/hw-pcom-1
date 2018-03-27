@@ -12,16 +12,24 @@ int main(int argc, char** argv) {
 	init(HOST, PORT);
 
 	msg *r;
-	pack *pack, *ack_pack = default_pack();
 	int i = 0, f = -1, eot = 0;
 	char filename[30], *Sdata = default_Sdata();
+    int time = TIME;
+
+	if (Sdata == NULL)
+		return -2;
+
+	pack *pack, *ack_pack = default_pack();
+
+	if (ack_pack == NULL)
+		return -2;
 
 	do {
 
-		r = receive_message_timeout(TIME * 1000);
+		r = receive_message_timeout(time * 1000);
 		if (r == NULL) {
 			if (f == -1) {
-				r = receive_message_timeout(TIME * 2000);
+				r = receive_message_timeout(time * 2000);
 				if (r == NULL) { //waited 3 * TIME seconds for Send-init pack => exit
 					perror("RECV: Timeout error. Shutting down");
 					return -1;
@@ -43,6 +51,12 @@ int main(int argc, char** argv) {
 		
 
 		pack = string_to_pack((unsigned char*)r->payload);
+
+		if (pack == NULL) {
+			free(Sdata);
+			free(ack_pack);
+			return -2;
+		}
 
 		/* Check if we received the right pack in the sequence,
 		 * namely the next pack if the last ack was positive,
@@ -69,6 +83,7 @@ int main(int argc, char** argv) {
 
 			switch(pack->TYPE) {
 				case 'S':
+                    time = pack->DATA[1];
 					ack_pack->DATA = (unsigned char*)Sdata;
 					ack_pack->LEN += 11;
 					break;
